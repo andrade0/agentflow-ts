@@ -104,7 +104,7 @@ export class SessionTracker {
    * Track an input message
    */
   trackInput(message: Message): void {
-    const tokens = this.tokenTracker.trackInput(message);
+    this.tokenTracker.trackInput(message);
     this.messages.push(message);
   }
 
@@ -115,9 +115,6 @@ export class SessionTracker {
     const tokens = this.tokenTracker.trackOutput(message);
     this.messages.push(message);
     
-    // Update cost tracker with the conversation turn
-    const inputTokens = this.tokenTracker.getStats().totalInput;
-    const outputTokens = this.tokenTracker.getStats().totalOutput;
     // Track incrementally (only the new output)
     this.costTracker.track(0, tokens);
   }

@@ -2,7 +2,7 @@
  * Context Compaction - Summarize and compact conversation history
  */
 
-import type { Message, Provider, ChatOptions } from '../types';
+import type { Message, Provider } from '../types';
 import { estimateConversationTokens, getContextLimit } from './tokens';
 
 export interface CompactionOptions {

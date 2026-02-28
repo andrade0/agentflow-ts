@@ -216,7 +216,6 @@ export function getContextStatusBar(
   const used = estimateConversationTokens(messages, model);
   const limit = getContextLimit(model);
   const percentage = Math.round((used / limit) * 100);
-  const color = getUsageColor(percentage);
   
   let text = `${formatNumber(used)}/${formatNumber(limit)} (${percentage}%)`;
   

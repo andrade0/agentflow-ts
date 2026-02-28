@@ -1,10 +1,10 @@
 import * as readline from 'readline';
 import { stdin as input, stdout as output } from 'process';
-import { Config, loadConfig } from '../config';
-import { createProvider, Provider } from '../providers';
-import { SkillManager } from '../skills';
-import { Agent, Message } from '../agents';
-import { SessionTracker, visualizeContext, visualizeCosts } from '../context';
+import { loadConfig } from '../config';
+import { createProviders, parseModelString } from '../providers';
+import { loadAllSkills, matchSkills } from '../skills';
+import type { Skill, Message, Provider } from '../types';
+import { SessionTracker } from '../context';
 
 // ANSI colors
 const colors = {
@@ -19,34 +19,31 @@ const colors = {
 };
 
 export class REPL {
-  private config: Config;
   private provider: Provider;
-  private skillManager: SkillManager;
-  private agent: Agent;
+  private skills: Skill[];
   private history: Message[] = [];
   private rl: readline.Interface;
   private running = false;
   private sessionTracker: SessionTracker;
   private maxBudget?: number;
+  private currentModel: string;
+  private currentProvider: string;
 
   constructor(
-    config: Config, 
     provider: Provider, 
-    skillManager: SkillManager,
-    options: { maxBudget?: number } = {}
+    skills: Skill[],
+    options: { maxBudget?: number; model?: string; providerName?: string } = {}
   ) {
-    this.config = config;
     this.provider = provider;
-    this.skillManager = skillManager;
-    this.agent = new Agent(provider, skillManager, config);
+    this.skills = skills;
     this.maxBudget = options.maxBudget;
     
-    const providerName = config.defaults?.provider || 'ollama';
-    const modelName = config.defaults?.model || 'llama3.3';
+    this.currentProvider = options.providerName || 'ollama';
+    this.currentModel = options.model || 'llama3.3';
     
     this.sessionTracker = new SessionTracker({
-      model: modelName,
-      provider: providerName,
+      model: this.currentModel,
+      provider: this.currentProvider,
       maxBudget: options.maxBudget,
     });
     
@@ -92,20 +89,19 @@ export class REPL {
         console.log(`${colors.yellow}${warning}${colors.reset}`);
       }
       
-      const input = await this.prompt();
+      const userInput = await this.prompt();
       
-      if (!input.trim()) continue;
+      if (!userInput.trim()) continue;
       
-      if (this.handleCommand(input)) continue;
+      if (this.handleCommand(userInput)) continue;
       
-      await this.processInput(input);
+      await this.processInput(userInput);
     }
   }
 
   private prompt(): Promise<string> {
     // Show context status in prompt
     const stats = this.sessionTracker.getStats();
-    const statusBar = this.sessionTracker.getStatusBar();
     
     // Color based on usage
     let statusColor = colors.green;
@@ -130,7 +126,7 @@ export class REPL {
     console.log(`${colors.cyan}${colors.bold}│                Superpowers for everyone 🚀                  │${colors.reset}`);
     console.log(`${colors.cyan}${colors.bold}╰─────────────────────────────────────────────────────────────╯${colors.reset}`);
     console.log();
-    console.log(`${colors.gray}Provider: ${this.config.defaults?.provider || 'ollama'} | Model: ${this.config.defaults?.model || 'llama3.3'}${colors.reset}`);
+    console.log(`${colors.gray}Provider: ${this.currentProvider} | Model: ${this.currentModel}${colors.reset}`);
     if (this.maxBudget) {
       console.log(`${colors.gray}Budget: $${this.maxBudget.toFixed(2)}${colors.reset}`);
     }
@@ -192,26 +188,21 @@ export class REPL {
 
       case '/model':
         if (parts[1]) {
-          this.config.defaults = this.config.defaults || {};
-          this.config.defaults.model = parts[1];
+          this.currentModel = parts[1];
           this.sessionTracker.setModel(parts[1]);
           console.log(`Model changed to: ${parts[1]}`);
         } else {
-          console.log(`Current model: ${this.config.defaults?.model || 'not set'}`);
+          console.log(`Current model: ${this.currentModel}`);
         }
         return true;
 
       case '/provider':
         if (parts[1]) {
-          this.config.defaults = this.config.defaults || {};
-          this.config.defaults.provider = parts[1];
-          this.sessionTracker.setModel(
-            this.config.defaults.model || 'default',
-            parts[1]
-          );
+          this.currentProvider = parts[1];
+          this.sessionTracker.setModel(this.currentModel, parts[1]);
           console.log(`Provider changed to: ${parts[1]}`);
         } else {
-          console.log(`Current provider: ${this.config.defaults?.provider || 'not set'}`);
+          console.log(`Current provider: ${this.currentProvider}`);
         }
         return true;
 
@@ -289,11 +280,10 @@ export class REPL {
   }
 
   private listSkills(): void {
-    const skills = this.skillManager.list();
     console.log();
     console.log(`${colors.cyan}Available Skills:${colors.reset}`);
     console.log();
-    for (const skill of skills) {
+    for (const skill of this.skills) {
       console.log(`  • ${skill.name}`);
       console.log(`${colors.gray}    ${skill.description}${colors.reset}`);
     }
@@ -381,8 +371,8 @@ export class REPL {
     console.log();
     console.log(`${colors.cyan}${colors.bold}Session Status${colors.reset}`);
     console.log(`${colors.gray}───────────────────────────────────${colors.reset}`);
-    console.log(`${colors.gray}Provider:${colors.reset}  ${this.config.defaults?.provider || 'ollama'}`);
-    console.log(`${colors.gray}Model:${colors.reset}     ${this.config.defaults?.model || 'llama3.3'}`);
+    console.log(`${colors.gray}Provider:${colors.reset}  ${this.currentProvider}`);
+    console.log(`${colors.gray}Model:${colors.reset}     ${this.currentModel}`);
     console.log(`${colors.gray}Duration:${colors.reset}  ${mins}m ${secs}s`);
     console.log(`${colors.gray}Messages:${colors.reset}  ${stats.messages}`);
     console.log();
@@ -407,16 +397,16 @@ export class REPL {
     console.log();
   }
 
-  private async processInput(input: string): Promise<void> {
+  private async processInput(userInput: string): Promise<void> {
     // Track input message
-    const userMessage: Message = { role: 'user', content: input };
+    const userMessage: Message = { role: 'user', content: userInput };
     this.history.push(userMessage);
     this.sessionTracker.trackInput(userMessage);
 
     // Match skill
-    const matchedSkill = this.skillManager.match(input);
+    const matchedSkill = matchSkills(userInput, this.skills)[0];
     if (matchedSkill) {
-      console.log(`${colors.gray}\n[Skill: ${matchedSkill.name}]${colors.reset}`);
+      console.log(`${colors.gray}\n[Skill: ${matchedSkill.skill.name}]${colors.reset}`);
     }
 
     // Print agent prompt
@@ -426,7 +416,7 @@ export class REPL {
       // Stream response
       let fullResponse = '';
       
-      for await (const chunk of this.agent.streamChat(this.history, matchedSkill)) {
+      for await (const chunk of this.provider.chat(this.history, { model: this.currentModel })) {
         process.stdout.write(chunk);
         fullResponse += chunk;
         // Track streaming tokens
@@ -448,10 +438,23 @@ export class REPL {
 
 export async function startREPL(options: { maxBudget?: number } = {}): Promise<void> {
   const config = await loadConfig();
-  const provider = createProvider(config);
-  const skillManager = new SkillManager(config.skills?.paths || []);
-  await skillManager.load();
+  const modelString = config.defaults?.main || 'ollama/llama3.3:70b';
+  const { provider: providerName, model } = parseModelString(modelString);
+  
+  const providers = createProviders(config.providers);
+  const provider = providers.get(providerName);
+  
+  if (!provider) {
+    console.error(`Failed to create provider: ${providerName}`);
+    process.exit(1);
+  }
+  
+  const skills = await loadAllSkills();
 
-  const repl = new REPL(config, provider, skillManager, options);
+  const repl = new REPL(provider, skills, {
+    maxBudget: options.maxBudget,
+    model,
+    providerName,
+  });
   await repl.run();
 }
