@@ -17,7 +17,12 @@ const program = new Command();
 program
   .name('agentflow')
   .description('Agentic workflow framework for free/local LLMs')
-  .version(VERSION);
+  .version(VERSION)
+  .action(async () => {
+    // Default action: start interactive REPL
+    const { startREPL } = await import('../repl');
+    await startREPL();
+  });
 
 // Init command
 program
