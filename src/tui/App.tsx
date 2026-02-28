@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { render, Box, Text, useInput, useApp, useStdout } from 'ink';
 import Spinner from 'ink-spinner';
 import TextInput from 'ink-text-input';
 import { Config, loadConfig } from '../config';
 import { createProvider, Provider } from '../providers';
 import { SkillManager, Skill } from '../skills';
+import { Session, SessionManager, getSessionManager, SessionMetadata } from '../sessions';
 
 // Types
 interface Message {
@@ -17,6 +18,14 @@ interface AppProps {
   config: Config;
   provider: Provider;
   skillManager: SkillManager;
+  initialSession?: Session;
+  forkSession?: boolean;
+}
+
+interface StartTUIOptions {
+  continueSession?: boolean;
+  resumeSession?: string;
+  forkSession?: boolean;
 }
 
 // Colors
@@ -132,9 +141,10 @@ const HelpContent = () => (
 );
 
 // Main App component
-const App: React.FC<AppProps> = ({ config, provider, skillManager }) => {
+const App: React.FC<AppProps> = ({ config, provider, skillManager, initialSession, forkSession }) => {
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const sessionManager = useRef(getSessionManager());
   
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -144,6 +154,57 @@ const App: React.FC<AppProps> = ({ config, provider, skillManager }) => {
   const [lastSkill, setLastSkill] = useState<string | undefined>();
   const [sessionStart] = useState(new Date());
   const [showHelp, setShowHelp] = useState(false);
+  const [currentSession, setCurrentSession] = useState<Session | null>(null);
+  const [sessionsList, setSessionsList] = useState<SessionMetadata[] | null>(null);
+
+  // Initialize session on mount
+  useEffect(() => {
+    const initSession = async () => {
+      let session: Session;
+      
+      if (initialSession && !forkSession) {
+        // Resume existing session
+        session = initialSession;
+        // Restore messages
+        const restoredMessages: Message[] = initialSession.messages.map(m => ({
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.timestamp),
+        }));
+        setMessages(restoredMessages);
+        if (initialSession.model) setCurrentModel(initialSession.model);
+        if (initialSession.provider) setCurrentProvider(initialSession.provider);
+      } else if (initialSession && forkSession) {
+        // Fork: create new session with messages from original
+        session = sessionManager.current.create(
+          process.cwd(),
+          currentProvider,
+          currentModel
+        );
+        session.messages = [...initialSession.messages];
+        session.name = initialSession.name ? `${initialSession.name} (fork)` : undefined;
+        // Restore messages
+        const restoredMessages: Message[] = initialSession.messages.map(m => ({
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.timestamp),
+        }));
+        setMessages(restoredMessages);
+      } else {
+        // New session
+        session = sessionManager.current.create(
+          process.cwd(),
+          currentProvider,
+          currentModel
+        );
+      }
+      
+      setCurrentSession(session);
+      await sessionManager.current.save(session);
+    };
+
+    initSession();
+  }, []);
 
   // Calculate session duration
   const getSessionDuration = useCallback(() => {
@@ -167,6 +228,24 @@ const App: React.FC<AppProps> = ({ config, provider, skillManager }) => {
       content,
       timestamp: new Date(),
     }]);
+  }, []);
+
+  // Save message to session
+  const saveMessageToSession = useCallback(async (msg: Message) => {
+    if (!currentSession) return;
+    
+    currentSession.messages.push({
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp.toISOString(),
+    });
+    await sessionManager.current.save(currentSession);
+  }, [currentSession]);
+
+  // Load sessions list
+  const loadSessionsList = useCallback(async () => {
+    const sessions = await sessionManager.current.list();
+    setSessionsList(sessions);
   }, []);
 
   // Handle command
@@ -225,10 +304,61 @@ const App: React.FC<AppProps> = ({ config, provider, skillManager }) => {
         addSystemMessage('Conversation compacted (not yet implemented)');
         break;
 
+      case '/sessions':
+        loadSessionsList();
+        break;
+
+      case '/resume':
+        if (parts[1]) {
+          sessionManager.current.find(parts[1]).then(session => {
+            if (session) {
+              // Restore messages
+              const restoredMessages: Message[] = session.messages.map(m => ({
+                role: m.role as Message['role'],
+                content: m.content,
+                timestamp: new Date(m.timestamp),
+              }));
+              setMessages(restoredMessages);
+              setCurrentSession(session);
+              if (session.model) setCurrentModel(session.model);
+              if (session.provider) setCurrentProvider(session.provider);
+              addSystemMessage(`Resumed session: ${session.name || session.id.slice(0, 8)}`);
+            } else {
+              addSystemMessage(`Session not found: ${parts[1]}`);
+            }
+          });
+        } else {
+          loadSessionsList();
+          addSystemMessage('Use /resume <id> to resume a session, or select from the list above.');
+        }
+        break;
+
+      case '/rename':
+        if (currentSession) {
+          const newName = parts.slice(1).join(' ').trim();
+          if (newName) {
+            currentSession.name = newName;
+            sessionManager.current.save(currentSession);
+            addSystemMessage(`Session renamed to: ${newName}`);
+          } else {
+            addSystemMessage(`Current session: ${currentSession.name || '(unnamed)'}\nUsage: /rename <name>`);
+          }
+        }
+        break;
+
+      case '/session':
+        if (currentSession) {
+          const name = currentSession.name || '(unnamed)';
+          const id = currentSession.id.slice(0, 8);
+          const msgCount = currentSession.messages.length;
+          addSystemMessage(`Current Session\n──────────────\nID: ${id}\nName: ${name}\nMessages: ${msgCount}\nWorkdir: ${currentSession.workdir}`);
+        }
+        break;
+
       default:
         addSystemMessage(`Unknown command: ${command}. Type /help for available commands.`);
     }
-  }, [exit, currentModel, currentProvider, messages.length, getSessionDuration, lastSkill, skillManager, addSystemMessage]);
+  }, [exit, currentModel, currentProvider, messages.length, getSessionDuration, lastSkill, skillManager, addSystemMessage, currentSession, loadSessionsList]);
 
   // Handle submit
   const handleSubmit = useCallback(async (value: string) => {
@@ -244,11 +374,13 @@ const App: React.FC<AppProps> = ({ config, provider, skillManager }) => {
     }
 
     // Add user message
-    setMessages(prev => [...prev, {
+    const userMessage: Message = {
       role: 'user',
       content: trimmed,
       timestamp: new Date(),
-    }]);
+    };
+    setMessages(prev => [...prev, userMessage]);
+    saveMessageToSession(userMessage);
 
     // Check for skill match
     const matchedSkill = skillManager.match(trimmed);
@@ -291,6 +423,14 @@ const App: React.FC<AppProps> = ({ config, provider, skillManager }) => {
           return newMessages;
         });
       }
+
+      // Save assistant message to session
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: fullResponse,
+        timestamp: new Date(),
+      };
+      saveMessageToSession(assistantMessage);
     } catch (error) {
       setMessages(prev => [...prev, {
         role: 'system',
@@ -300,7 +440,7 @@ const App: React.FC<AppProps> = ({ config, provider, skillManager }) => {
     } finally {
       setIsStreaming(false);
     }
-  }, [messages, currentModel, provider, skillManager, handleCommand]);
+  }, [messages, currentModel, provider, skillManager, handleCommand, saveMessageToSession]);
 
   return (
     <Box flexDirection="column" height={stdout?.rows || 24}>

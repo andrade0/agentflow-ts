@@ -1,6 +1,6 @@
 # 🚀 AgentFlow TS
 
-**Superpowers for everyone.** The TypeScript/Bun implementation of AgentFlow — bringing structured AI workflows to the JavaScript ecosystem.
+**Superpowers for everyone.** An open-source agentic coding tool that lives in your terminal — like Claude Code, but for free and local models. TypeScript/Bun implementation.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Bun](https://img.shields.io/badge/Bun-1.0+-f9f1e1?logo=bun)](https://bun.sh/)
@@ -8,43 +8,282 @@
 
 ---
 
-## Why AgentFlow TS?
+## Why AgentFlow?
 
-The same powerful workflows as [AgentFlow](https://github.com/agentflow/agentflow) (Go), but for the JavaScript/TypeScript ecosystem.
+Claude Code is amazing, but requires an Anthropic subscription. AgentFlow brings the same powerful experience to everyone:
 
-Perfect for:
-- **JS/TS developers** who want native tooling
-- **Bun users** who want blazing fast startup
-- **Plugin developers** who want to extend in TypeScript
-- **Prototyping** with hot reload
+| Feature | Claude Code | AgentFlow |
+|---------|-------------|-----------|
+| Models | Claude only | Ollama, Groq, Together, any model |
+| Cost | $20+/month | Free (local) or cheap |
+| Privacy | Cloud API | Run fully offline |
+| Open Source | No | Yes, MIT licensed |
 
 ## Features
 
-### ⚡ Bun-Powered Performance
+### 🖥️ Full Terminal UI
 
-```bash
-# Install
-bun add -g agentflow-ts
+```
+🚀 AgentFlow TS v0.1.0
+ollama/llama3.3 • Enter to send • /help for commands
 
-# Run (startup < 200ms)
-agentflow run "build a Next.js dashboard"
+You 14:32
+build a REST API for users
+
+⚡ Skill: brainstorming
+
+Agent 14:32 ●
+Before I start coding, I have some questions...
+
+╭──────────────────────────────────────────────────────────╮
+│ > Type a message...                                      │
+╰──────────────────────────────────────────────────────────╯
+┌──────────────────────────────────────────────────────────┐
+│ ollama/llama3.3 │ 1.2k tokens │ $0.00 │ ↑5 msgs • 3m    │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### 🧩 TypeScript-Native
+### 📚 Claude Code-Compatible Features
+
+- **Session persistence** — Save and resume conversations
+- **Slash commands** — /help, /model, /compact, /export...
+- **Keyboard shortcuts** — History navigation, background tasks
+- **Streaming responses** — Real-time output with spinners
+- **Token tracking** — Know your context usage
+- **Cost estimation** — Track spending
+- **Themes** — Customize your experience
+- **React/Ink TUI** — Modern terminal UI
+
+### 🧠 Composable Skills
+
+Built-in skills for structured workflows:
+
+- **brainstorming** — Mandatory design before coding
+- **writing-plans** — 2-5 minute task breakdown
+- **subagent-driven-development** — Fresh agents per task
+- **test-driven-development** — RED-GREEN-REFACTOR
+- **systematic-debugging** — 4-phase root cause analysis
+- **verification-before-completion** — Evidence before claims
+
+## Installation
+
+### Global CLI
+
+```bash
+# With Bun (recommended)
+bun add -g agentflow-ts
+
+# With npm
+npm install -g agentflow-ts
+
+# With pnpm
+pnpm add -g agentflow-ts
+```
+
+### From Source
+
+```bash
+git clone https://github.com/andrade0/agentflow-ts.git
+cd agentflow-ts
+bun install
+bun link
+```
+
+## Quick Start
+
+### 1. Configure a Provider
+
+```bash
+# Create config directory
+mkdir -p ~/.agentflow
+
+# Create config file
+cat > ~/.agentflow/config.yaml << 'EOF'
+providers:
+  ollama:
+    baseUrl: http://localhost:11434
+    models: [llama3.3:70b, codellama:34b]
+  groq:
+    apiKey: ${GROQ_API_KEY}
+    models: [llama-3.3-70b-versatile]
+
+defaults:
+  provider: ollama
+  model: llama3.3:70b
+EOF
+```
+
+### 2. Start AgentFlow
+
+```bash
+# Start interactive session
+agentflow
+
+# Or with initial prompt
+agentflow "explain this project"
+```
+
+## CLI Commands
+
+```bash
+# Interactive mode (default)
+agentflow                      # Start TUI
+agentflow "task"               # Start with prompt
+
+# Session management
+agentflow -c                   # Continue last session
+agentflow -r <id|name>         # Resume specific session
+agentflow --fork-session       # Fork when resuming
+
+# Non-interactive
+agentflow run "task"           # Execute and exit
+cat file | agentflow -p "explain"  # Pipe content
+
+# Configuration
+agentflow init                 # Create .agentflow/
+agentflow config               # Show config
+
+# Skills & Models
+agentflow skill                # List skills
+agentflow skill brainstorming  # Run specific skill
+agentflow models               # List available models
+```
+
+## Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all commands |
+| `/quit`, `/exit` | Exit session |
+| `/clear` | Clear conversation |
+| `/compact [focus]` | Compact context |
+| `/model [name]` | Show/change model |
+| `/provider [name]` | Show/change provider |
+| `/status` | Session statistics |
+| `/cost` | Token usage & costs |
+| `/context` | Visualize context |
+| `/sessions` | List saved sessions |
+| `/resume [id]` | Resume session |
+| `/rename [name]` | Rename session |
+| `/export [file]` | Export conversation |
+| `/copy` | Copy last response |
+| `/skills` | List skills |
+| `/theme` | Change theme |
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+C` | Cancel / Exit |
+| `Enter` | Send message |
+| `Up/Down` | Navigate history |
+| `Tab` | Autocomplete |
+
+## Configuration
+
+### Global Config (~/.agentflow/config.yaml)
+
+```yaml
+providers:
+  ollama:
+    baseUrl: http://localhost:11434
+    models: [llama3.3:70b, codellama:34b, deepseek-coder:33b]
+  
+  groq:
+    apiKey: ${GROQ_API_KEY}
+    models: [llama-3.3-70b-versatile, mixtral-8x7b-32768]
+  
+  together:
+    apiKey: ${TOGETHER_API_KEY}
+    models: [meta-llama/Llama-3.3-70B-Instruct-Turbo]
+  
+  anthropic:
+    apiKey: ${ANTHROPIC_API_KEY}
+    models: [claude-sonnet-4-20250514]
+
+defaults:
+  provider: groq
+  model: llama-3.3-70b-versatile
+
+roles:
+  main:
+    provider: groq
+    model: llama-3.3-70b-versatile
+  subagent:
+    provider: ollama
+    model: codellama:34b
+  reviewer:
+    provider: together
+    model: Qwen/Qwen2.5-Coder-32B-Instruct
+
+skills:
+  paths:
+    - ./skills
+    - ~/.agentflow/skills
+
+session:
+  autoSave: true
+  maxSessions: 50
+```
+
+### Project Config (.agentflow/config.yaml)
+
+```yaml
+project:
+  name: my-api
+  language: typescript
+  testCommand: bun test
+  lintCommand: bun run lint
+```
+
+## API Usage
+
+Use AgentFlow as a library:
 
 ```typescript
 import { AgentFlow, OllamaProvider } from 'agentflow-ts';
 
 const agent = new AgentFlow({
   provider: new OllamaProvider({
+    baseUrl: 'http://localhost:11434',
     model: 'llama3.3:70b'
   })
 });
 
-const result = await agent.run('add user authentication');
+// Simple query
+const response = await agent.run('explain this code');
+console.log(response);
+
+// Streaming
+for await (const chunk of agent.stream('write a function')) {
+  process.stdout.write(chunk);
+}
+
+// With skills
+const design = await agent.skill('brainstorming').run('build auth system');
 ```
 
-### 🔌 Easy Plugin Development
+## Skills
+
+Skills are markdown files that define workflows:
+
+```markdown
+---
+name: my-skill
+description: "When to use this skill"
+triggers: ["keyword1", "keyword2"]
+priority: 50
+---
+
+# My Skill
+
+## Process
+1. Step one
+2. Step two
+...
+```
+
+Or TypeScript for programmatic control:
 
 ```typescript
 // skills/my-skill/index.ts
@@ -55,367 +294,62 @@ export default defineSkill({
   description: 'Does something cool',
   triggers: ['cool', 'awesome'],
   
-  async run(context) {
-    // Your skill logic
-    await context.ask('What specifically do you want?');
-    await context.execute('npm install something');
-    return context.complete('Done!');
+  async run(ctx) {
+    const answer = await ctx.ask('What do you want?');
+    await ctx.exec('npm install');
+    return ctx.complete('Done!');
   }
 });
 ```
 
-### 🌊 Streaming by Default
-
-```typescript
-for await (const chunk of agent.stream('explain this code')) {
-  process.stdout.write(chunk);
-}
-```
-
-## Installation
-
-### Global CLI
-
-```bash
-# With Bun
-bun add -g agentflow-ts
-
-# With npm
-npm install -g agentflow-ts
-
-# With pnpm
-pnpm add -g agentflow-ts
-```
-
-### As Library
-
-```bash
-bun add agentflow-ts
-```
-
-## Quick Start
-
-### 1. Initialize
-
-```bash
-cd your-project
-agentflow init
-```
-
-### 2. Configure
-
-```typescript
-// .agentflow/config.ts
-import { defineConfig } from 'agentflow-ts';
-
-export default defineConfig({
-  providers: {
-    ollama: {
-      baseUrl: 'http://localhost:11434',
-    },
-    groq: {
-      apiKey: process.env.GROQ_API_KEY,
-    },
-  },
-  defaults: {
-    provider: 'ollama',
-    model: 'llama3.3:70b',
-  },
-});
-```
-
-### 3. Run
-
-```bash
-agentflow run "add a REST API for todos"
-```
-
-## API Reference
-
-### AgentFlow Class
-
-```typescript
-import { AgentFlow } from 'agentflow-ts';
-
-const agent = new AgentFlow(config);
-
-// Run a task
-const result = await agent.run('build feature X');
-
-// Stream responses
-for await (const chunk of agent.stream('explain this')) {
-  console.log(chunk);
-}
-
-// Run specific skill
-await agent.skill('brainstorming').run();
-
-// Spawn subagent
-const subagent = agent.spawn({
-  model: 'codellama:34b',
-  task: 'implement login form'
-});
-```
-
-### Providers
-
-```typescript
-import {
-  OllamaProvider,
-  GroqProvider,
-  TogetherProvider,
-  OpenAICompatProvider,
-} from 'agentflow-ts';
-
-// Ollama (local)
-const ollama = new OllamaProvider({
-  baseUrl: 'http://localhost:11434',
-  model: 'llama3.3:70b',
-});
-
-// Groq (free tier)
-const groq = new GroqProvider({
-  apiKey: process.env.GROQ_API_KEY,
-  model: 'llama-3.3-70b-versatile',
-});
-
-// Together
-const together = new TogetherProvider({
-  apiKey: process.env.TOGETHER_API_KEY,
-  model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
-});
-
-// Any OpenAI-compatible API
-const custom = new OpenAICompatProvider({
-  baseUrl: 'https://api.myservice.com/v1',
-  apiKey: process.env.MY_API_KEY,
-  model: 'custom-model',
-});
-```
-
-### Skill Definition
-
-```typescript
-import { defineSkill, SkillContext } from 'agentflow-ts';
-
-export default defineSkill({
-  name: 'my-skill',
-  description: 'When to use this skill',
-  triggers: ['keyword1', 'keyword2'],
-  priority: 50,  // Higher = more likely to match
-  
-  async run(ctx: SkillContext) {
-    // Read files
-    const content = await ctx.read('package.json');
-    
-    // Ask questions
-    const answer = await ctx.ask('What framework?', {
-      choices: ['React', 'Vue', 'Svelte'],
-    });
-    
-    // Execute commands
-    const output = await ctx.exec('npm test');
-    
-    // Generate with LLM
-    const code = await ctx.generate('Write a function that...');
-    
-    // Write files
-    await ctx.write('src/component.tsx', code);
-    
-    // Spawn subagent
-    const result = await ctx.subagent({
-      task: 'review this code',
-      model: 'qwen2.5-coder:32b',
-    });
-    
-    return ctx.complete('Done!');
-  },
-});
-```
-
-## CLI Commands
-
-```bash
-# Initialize project
-agentflow init
-
-# Run task (auto-matches skill)
-agentflow run "build a feature"
-
-# Run specific skill
-agentflow skill brainstorming
-agentflow skill run systematic-debugging
-
-# List skills
-agentflow skill list
-
-# Configuration
-agentflow config show
-agentflow config set provider groq
-agentflow config set model llama-3.3-70b-versatile
-
-# Interactive TUI
-agentflow tui
-
-# Start as server (for IDE integrations)
-agentflow serve --port 3000
-```
-
-## Configuration
-
-### Config File
-
-`.agentflow/config.ts`:
-
-```typescript
-import { defineConfig } from 'agentflow-ts';
-
-export default defineConfig({
-  project: {
-    name: 'my-app',
-    language: 'typescript',
-    testCommand: 'bun test',
-    lintCommand: 'bun run lint',
-  },
-  
-  providers: {
-    ollama: {
-      baseUrl: 'http://localhost:11434',
-    },
-    groq: {
-      apiKey: process.env.GROQ_API_KEY,
-    },
-    together: {
-      apiKey: process.env.TOGETHER_API_KEY,
-    },
-  },
-  
-  defaults: {
-    provider: 'groq',
-    model: 'llama-3.3-70b-versatile',
-  },
-  
-  roles: {
-    main: {
-      provider: 'groq',
-      model: 'llama-3.3-70b-versatile',
-    },
-    subagent: {
-      provider: 'ollama',
-      model: 'codellama:34b',
-    },
-    reviewer: {
-      provider: 'together',
-      model: 'Qwen/Qwen2.5-Coder-32B-Instruct',
-    },
-  },
-  
-  skills: {
-    // Custom skill directories
-    paths: ['./skills', '~/.agentflow/skills'],
-  },
-});
-```
-
-### Environment Variables
-
-```bash
-# API Keys
-GROQ_API_KEY=gsk_...
-TOGETHER_API_KEY=...
-OPENAI_API_KEY=sk-...
-
-# Ollama (optional, defaults to localhost)
-OLLAMA_HOST=http://localhost:11434
-
-# Defaults
-AGENTFLOW_PROVIDER=groq
-AGENTFLOW_MODEL=llama-3.3-70b-versatile
-```
-
-## Skills
-
-### Built-in Skills
-
-Same skills as AgentFlow Go, with TypeScript adaptations:
-
-| Skill | Triggers | Purpose |
-|-------|----------|---------|
-| brainstorming | build, create, feature | Design phase |
-| writing-plans | plan, tasks | Task breakdown |
-| subagent-driven-development | execute, implement | Parallel execution |
-| test-driven-development | test, TDD | RED-GREEN-REFACTOR |
-| systematic-debugging | bug, error | Root cause analysis |
-| verification-before-completion | done, complete | Evidence checks |
-
-### Skill Format
-
-Skills can be markdown (`.md`) or TypeScript (`.ts`):
-
-**Markdown (compatible with Go version):**
-```markdown
----
-name: my-skill
-description: "When to use"
-triggers: ["keyword"]
----
-
-# My Skill
-
-## Process
-1. Do thing
-2. Do other thing
-```
-
-**TypeScript (TS-specific features):**
-```typescript
-export default defineSkill({
-  name: 'my-skill',
-  // ... with full programmatic control
-});
-```
-
-## Bun vs Node
-
-AgentFlow TS is optimized for Bun but works with Node.js:
-
-| Feature | Bun | Node |
-|---------|-----|------|
-| Startup | ~100ms | ~500ms |
-| TypeScript | Native | Requires tsx |
-| Config | .ts native | .ts via loader |
-| Tests | bun test | jest/vitest |
-
-For Node.js:
-```bash
-# Install
-npm install -g agentflow-ts
-
-# Run with tsx
-npx tsx $(which agentflow)
-```
-
-## Contributing
-
-```bash
-git clone https://github.com/agentflow/agentflow-ts.git
-cd agentflow-ts
-bun install
-bun test
-bun run build
-```
+## Model Recommendations
+
+| Use Case | Model | Provider |
+|----------|-------|----------|
+| General coding | llama-3.3-70b | Groq (free) |
+| Code generation | codellama:34b | Ollama |
+| Code review | Qwen2.5-Coder-32B | Together |
+| Fast responses | llama-3.2-3b | Ollama |
+| Best quality | claude-sonnet-4 | Anthropic |
+
+### Free Tier Limits
+
+| Provider | Free Tier |
+|----------|-----------|
+| Ollama | Unlimited (local) |
+| Groq | 30 req/min |
+| Together | $5 credit |
+
+## Roadmap
+
+- [x] Interactive TUI (React/Ink)
+- [x] Streaming responses
+- [x] Skill system
+- [x] Subagent support
+- [x] Multiple providers
+- [ ] Session persistence
+- [ ] Token counting
+- [ ] Cost tracking
+- [ ] Background tasks
+- [ ] Vim mode
+- [ ] MCP integration
 
 ## Related Projects
 
-- [AgentFlow (Go)](https://github.com/agentflow/agentflow) — The Go implementation
-- [Superpowers](https://github.com/obra/superpowers) — The original inspiration
+- [AgentFlow (Go)](https://github.com/andrade0/agentflow) — Go implementation
+- [Superpowers](https://github.com/obra/superpowers) — Original inspiration
+- [Claude Code](https://code.claude.com) — Anthropic's tool
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT License
+MIT License — Use it, fork it, build cool stuff.
 
 ---
 
 **Star ⭐ if you find this useful!**
 
-[Documentation](https://agentflow.dev/docs/ts) · [Discord](https://discord.gg/agentflow) · [Twitter](https://twitter.com/agentflow_dev)
+[Documentation](docs/) · [Issues](https://github.com/andrade0/agentflow-ts/issues)

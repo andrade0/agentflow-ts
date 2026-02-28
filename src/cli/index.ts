@@ -5,6 +5,7 @@ import { createProviders, parseModelString } from '../providers';
 import { loadAllSkills, matchSkills, runSkill } from '../skills';
 import { createAgentContext, runAgent, chat } from '../agents';
 import { SubagentPool } from '../subagents';
+import { getSessionManager, SessionManager } from '../sessions';
 import { createInterface } from 'readline';
 import { join } from 'path';
 import { mkdir, writeFile } from 'fs/promises';
@@ -18,10 +19,17 @@ program
   .name('agentflow')
   .description('Agentic workflow framework for free/local LLMs')
   .version(VERSION)
-  .action(async () => {
+  .option('-c, --continue', 'Continue the last session in current directory')
+  .option('-r, --resume <id>', 'Resume a specific session by ID or name')
+  .option('--fork-session', 'Fork the resumed session instead of continuing it')
+  .action(async (options) => {
     // Default action: start interactive TUI
     const { startTUI } = await import('../tui/App');
-    await startTUI();
+    await startTUI({
+      continueSession: options.continue,
+      resumeSession: options.resume,
+      forkSession: options.forkSession,
+    });
   });
 
 // Init command
@@ -302,6 +310,55 @@ program
         console.log(`  (unable to list models: ${error instanceof Error ? error.message : error})`);
       }
     }
+  });
+
+// Sessions command
+program
+  .command('sessions')
+  .description('List and manage saved sessions')
+  .option('-d, --delete <id>', 'Delete a session by ID')
+  .option('-a, --all', 'Show all sessions (default: last 10)')
+  .option('--cleanup', 'Remove old sessions (keep last 50)')
+  .action(async (options) => {
+    const sessionManager = getSessionManager();
+
+    if (options.cleanup) {
+      const deleted = await sessionManager.cleanup();
+      console.log(`Cleaned up ${deleted} old session(s).`);
+      return;
+    }
+
+    if (options.delete) {
+      const success = await sessionManager.delete(options.delete);
+      if (success) {
+        console.log(`Session ${options.delete} deleted.`);
+      } else {
+        console.error(`Session ${options.delete} not found.`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    const sessions = await sessionManager.list();
+    const limit = options.all ? sessions.length : Math.min(10, sessions.length);
+
+    if (sessions.length === 0) {
+      console.log('No saved sessions.');
+      return;
+    }
+
+    console.log('\nSaved Sessions:');
+    console.log('─'.repeat(80));
+    
+    for (let i = 0; i < limit; i++) {
+      console.log(SessionManager.formatSession(sessions[i]));
+    }
+
+    if (!options.all && sessions.length > 10) {
+      console.log(`\n...and ${sessions.length - 10} more (use --all to show all)`);
+    }
+
+    console.log();
   });
 
 // Subagent command
