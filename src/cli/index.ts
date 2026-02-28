@@ -19,9 +19,9 @@ program
   .description('Agentic workflow framework for free/local LLMs')
   .version(VERSION)
   .action(async () => {
-    // Default action: start interactive REPL
-    const { startREPL } = await import('../repl');
-    await startREPL();
+    // Default action: start interactive TUI
+    const { startTUI } = await import('../tui/App');
+    await startTUI();
   });
 
 // Init command
