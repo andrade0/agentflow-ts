@@ -122,19 +122,62 @@ const StatusBar: React.FC<{
   </Box>
 );
 
+// Sessions list component
+const SessionsListView: React.FC<{ sessions: SessionMetadata[]; onClose: () => void }> = ({ sessions, onClose }) => {
+  useInput((_, key) => {
+    if (key.escape || key.return) {
+      onClose();
+    }
+  });
+
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor={colors.accent} padding={1}>
+      <Text bold color={colors.accent}>Saved Sessions (press Enter or Esc to close)</Text>
+      <Text> </Text>
+      {sessions.length === 0 ? (
+        <Text color={colors.muted}>No saved sessions</Text>
+      ) : (
+        sessions.slice(0, 10).map((session) => {
+          const name = session.name || '(unnamed)';
+          const date = new Date(session.updatedAt).toLocaleString();
+          return (
+            <Box key={session.id}>
+              <Text color={colors.primary}>{session.id.slice(0, 8)}</Text>
+              <Text> • </Text>
+              <Text>{name.slice(0, 20).padEnd(20)}</Text>
+              <Text color={colors.muted}> • {session.messageCount} msgs • {date}</Text>
+            </Box>
+          );
+        })
+      )}
+      {sessions.length > 10 && (
+        <Text color={colors.muted}>...and {sessions.length - 10} more</Text>
+      )}
+      <Text> </Text>
+      <Text color={colors.muted}>Use /resume {'<id>'} to resume a session</Text>
+    </Box>
+  );
+};
+
 // Help content
 const HelpContent = () => (
   <Box flexDirection="column" borderStyle="round" borderColor={colors.primary} padding={1}>
     <Text bold color={colors.primary}>Available Commands</Text>
     <Text> </Text>
-    <Text><Text bold>/help, /h</Text>      Show this help</Text>
-    <Text><Text bold>/quit, /q</Text>      Exit the session</Text>
-    <Text><Text bold>/clear, /c</Text>     Clear conversation</Text>
-    <Text><Text bold>/model</Text> [name]  Show/change model</Text>
-    <Text><Text bold>/provider</Text> [n]  Show/change provider</Text>
-    <Text><Text bold>/status</Text>        Show session stats</Text>
-    <Text><Text bold>/skills</Text>        List available skills</Text>
-    <Text><Text bold>/compact</Text>       Compact history</Text>
+    <Text><Text bold>/help, /h</Text>       Show this help</Text>
+    <Text><Text bold>/quit, /q</Text>       Exit the session</Text>
+    <Text><Text bold>/clear, /c</Text>      Clear conversation</Text>
+    <Text><Text bold>/model</Text> [name]   Show/change model</Text>
+    <Text><Text bold>/provider</Text> [n]   Show/change provider</Text>
+    <Text><Text bold>/status</Text>         Show session stats</Text>
+    <Text><Text bold>/skills</Text>         List available skills</Text>
+    <Text><Text bold>/compact</Text>        Compact history</Text>
+    <Text> </Text>
+    <Text bold color={colors.accent}>Session Commands</Text>
+    <Text><Text bold>/sessions</Text>       List saved sessions</Text>
+    <Text><Text bold>/session</Text>        Show current session info</Text>
+    <Text><Text bold>/resume</Text> [id]    Resume a session</Text>
+    <Text><Text bold>/rename</Text> [name]  Rename current session</Text>
     <Text> </Text>
     <Text color={colors.muted}>Ctrl+C to exit • Enter to send</Text>
   </Box>
@@ -448,6 +491,13 @@ const App: React.FC<AppProps> = ({ config, provider, skillManager, initialSessio
       
       {showHelp && <HelpContent />}
       
+      {sessionsList && (
+        <SessionsListView 
+          sessions={sessionsList} 
+          onClose={() => setSessionsList(null)} 
+        />
+      )}
+      
       <MessagesList messages={messages} isStreaming={isStreaming} />
       
       <Box borderStyle="round" borderColor={colors.primary} paddingX={1}>
@@ -473,13 +523,50 @@ const App: React.FC<AppProps> = ({ config, provider, skillManager, initialSessio
 };
 
 // Start function
-export async function startTUI(): Promise<void> {
+export async function startTUI(options: StartTUIOptions = {}): Promise<void> {
   const config = await loadConfig();
   const provider = createProvider(config);
   const skillManager = new SkillManager(config.skills?.paths || []);
   await skillManager.load();
+  
+  const sessionManager = getSessionManager();
+  let initialSession: Session | undefined;
 
-  render(<App config={config} provider={provider} skillManager={skillManager} />);
+  // Handle --continue flag
+  if (options.continueSession) {
+    const session = await sessionManager.getLatest(process.cwd());
+    if (session) {
+      initialSession = session;
+      console.log(`Continuing session: ${session.name || session.id.slice(0, 8)}`);
+    } else {
+      console.log('No previous session found in this directory.');
+    }
+  }
+
+  // Handle --resume flag
+  if (options.resumeSession) {
+    const session = await sessionManager.find(options.resumeSession);
+    if (session) {
+      initialSession = session;
+      console.log(`Resuming session: ${session.name || session.id.slice(0, 8)}`);
+    } else {
+      console.error(`Session not found: ${options.resumeSession}`);
+      process.exit(1);
+    }
+  }
+
+  // Cleanup old sessions in background
+  sessionManager.cleanup().catch(() => {});
+
+  render(
+    <App 
+      config={config} 
+      provider={provider} 
+      skillManager={skillManager}
+      initialSession={initialSession}
+      forkSession={options.forkSession}
+    />
+  );
 }
 
 export default App;
